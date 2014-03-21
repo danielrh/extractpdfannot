@@ -146,7 +146,6 @@ json_t* processPage(const QPDFObjectHandle& page) {
     std::map<std::string, QPDFObjectHandle> dict(page_object.getDictAsMap());
     std::map<std::string, QPDFObjectHandle>::iterator mb, annots = dict.find("/Annots");
     if (annots != dict.end()) {
-        output = json_object();
         json_t *mediabox = NULL;
         mb = dict.find("/MediaBox");
         if (mb != dict.end()) {
@@ -155,13 +154,19 @@ json_t* processPage(const QPDFObjectHandle& page) {
         if (mediabox == NULL) {
             mediabox = fallbackMediaBox();
         }
-        json_object_set_new(output, "mediabox", mediabox);
         AnnotPair annot =  getAnnotations(annots->second);
         if (annot.urls != NULL) {
+            output = json_object();
             json_object_set_new(output, "urls", annot.urls);
         }
         if (annot.bookmarks != NULL) {
+            if (output == NULL) {
+                output = json_object();
+            }
             json_object_set_new(output, "bookmarks", annot.bookmarks);
+        }
+        if (output != NULL) {
+            json_object_set_new(output, "mediabox", mediabox);
         }
     }
     return output;
@@ -169,6 +174,12 @@ json_t* processPage(const QPDFObjectHandle& page) {
 int main(int argc, char** argv) {
     if (argc < 2) {
         usage(argv[0]);
+    }
+    bool pretty = false;
+    if (strcmp(argv[1], "--pretty") == 0) {
+        ++argv;
+        --argc;
+        pretty = true;
     }
     char const* filename = argv[1];
     char const* password = "";
@@ -202,8 +213,9 @@ int main(int argc, char** argv) {
                 json_object_set_new(root, page_number_s, page_structure);
             }
         }
-        // JSON_INDENT(4));
-        char * json_data = json_dumps(root, JSON_ENSURE_ASCII|JSON_COMPACT|JSON_SORT_KEYS);
+        char * json_data = json_dumps(root,
+                                      pretty? JSON_INDENT(4)|JSON_ENSURE_ASCII|JSON_SORT_KEYS
+                                      : (JSON_ENSURE_ASCII|JSON_COMPACT|JSON_SORT_KEYS));
         std::cout << json_data << std::endl;
         free(json_data);
         json_decref(root);
