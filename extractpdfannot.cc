@@ -72,24 +72,39 @@ json_t* processMediaBox(QPDFObjectHandle &media_box) {
 AnnotPair getAnnotations(QPDFObjectHandle annots) {
     AnnotPair retval = {NULL, NULL};
     if (annots.isArray()) {
+        const std::string SLASH_SUBTYPE("/Subtype");
+        const std::string SLASH_RECT("/Rect");
+        const std::string SLASH_LINK("/Link");
         int count = annots.getArrayNItems();
         for (int i=0; i < count; ++i) {
             QPDFObjectHandle annot (annots.getArrayItem(i));
             if (annot.isDictionary()) {
                 std::map<std::string, QPDFObjectHandle> dict(annot.getDictAsMap());
-                std::map<std::string, QPDFObjectHandle>::iterator rectangle, subtype;
-                subtype = dict.find("/Subtype");
-                rectangle = dict.find("/Rect");
+                std::map<std::string, QPDFObjectHandle>::iterator rectangle, subtype, iter,itere;
+                subtype = dict.find(SLASH_SUBTYPE);
+                rectangle = dict.find(SLASH_RECT);
                 if (subtype != dict.end() 
                     && rectangle != dict.end()
-                    && subtype->second.unparseResolved() == "/Link") {
+                    && subtype->second.unparseResolved() == SLASH_LINK) {
 
                     json_t * rect = processMediaBox(rectangle->second);
                     if (rect!= NULL) {
                         map<string, QPDFObjectHandle>::iterator actionDict = dict.find("/A");
                         json_t ** target = &retval.bookmarks;
                         json_t *uri = NULL;
-                        string data = annot.unparseResolved();
+                        string data = "";
+                        bool first_entry = true;
+                        for (iter = dict.begin(), itere = dict.end(); iter != itere; ++iter) {
+                            if (iter->first != SLASH_SUBTYPE && iter->first != SLASH_RECT) {
+                                if (!first_entry) {
+                                    data += ' ';
+                                }
+                                first_entry = false;
+                                data += iter->first;
+                                data += ' ';
+                                data += iter->second.unparseResolved();
+                            }
+                        }
                         if (actionDict != dict.end()) {
                             if (actionDict->second.isDictionary()
                                 && actionDict->second.hasKey("/URI")) {
